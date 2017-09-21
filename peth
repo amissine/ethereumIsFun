@@ -396,16 +396,16 @@ All standard options provide information only.
 
 ## USAGE
 
-For usage example, watch this URL:
+For usage example, watch this URL: https://youtu.be/TdiVjD7AWlo
 
 ## LICENSE
 
-For license information and more, visit this utility's home page by running  
+For license information and more, visit this utility's home page by running
 `peth --home`.
 
 ## ACKNOWLEDGEMENTS
 
-Aside of the article mentioned above, this script gratefully depends on the  
-`ttab` script (https://github.com/mklement0/ttab). The latter is not only  
-a runtime dependency, but has also been used as a template for this script.  
+Aside of the article mentioned above, this script gratefully depends on the
+`ttab` script (https://github.com/mklement0/ttab). The latter is not only
+a runtime dependency, but has also been used as a template for this script.
 EOF_MAN_PAGE
