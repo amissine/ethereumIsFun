@@ -1,0 +1,411 @@
+#!/usr/bin/env bash
+#
+# See also: https://tiswww.case.edu/php/chet/bash/bashref.html
+
+kTHIS_HOMEPAGE='https://github.com/amissine/ethereumIsFun'
+kTHIS_NAME=${BASH_SOURCE##*/}
+kTHIS_VERSION='v0.1.0'
+
+unset CDPATH  # To prevent unexpected `cd` behavior.
+
+va() {
+	local result=""
+	local prefix=$1
+	shift
+	for item in $@ ;  do
+		result="$result $prefix/$item"
+	done
+	echo $result
+}
+
+makeAccounts() {
+	echo "Creating ${nodeNames[@]} in $clusterDir..."
+	mkdir -p `va $clusterDir ${nodeNames[@]}`
+	pushd $clusterDir > /dev/null 2>&1
+	i=0
+	for nodeName in ${nodeNames[@]} ; do
+		address=$(printf '%s\n%s\n' "$PETH_PASSPHRASE" "$PETH_PASSPHRASE" | \
+                          geth --datadir $nodeName account new 2>&1 | \
+                          sed -n -e $'/^Address: {/s/Address: {/}/p' | tr -d '}')
+		addresses[i]=$address
+		i+=1
+	done
+}
+
+addAddresses() {
+	for address in ${addresses[@]} ; do
+		format+='%s\n'
+		indata+=" $address"
+	done
+	format+='\n'
+}
+              ##################################################################
+              #  network name to administer                                    #
+              #  |            configure new genesis                            #
+              #  |            | consensus engine is proof-of-authority (clique)#
+doGenesis() { #  |            | | blocks take 5 seconds                        #
+	indata=" $clusterName 2 2 5"                                           #
+	format='%s\n%s\n%s\n%s\n'                                              #
+	addAddresses # all accounts are allowed to seal                        #
+	addAddresses # all accounts should be pre-funded                       #
+	format+='\n\n%s\n\n'                                                   #
+	indata+=' 2'                                                           #
+	      #   save existing genesis                                        #
+	      ##################################################################
+	printf "$format"$indata | puppeth > /dev/null 2>&1
+	echo "Created and saved new genesis for $clusterName"
+}
+
+initNodes() {
+	for nodeName in ${nodeNames[@]} ; do
+		geth --datadir $nodeName init "$clusterName.json" 2>&1
+	done
+	popd > /dev/null 2>&1
+	echo "Initialized ${nodeNames[@]} servers"
+}
+
+addPeer() {
+	local nodeName="$1" enode line
+	sleep 3
+	enode=$(sed -n -e $'/"enode:/p' < /tmp/peth_${nodeName}.out)
+#	echo "addPeer: pid $$" >> /tmp/peth_pids
+	for node in ${nodeNames[@]}; do
+		[[ $node != $nodeName ]] && echo "admin.addPeer(${enode})" >> "/tmp/peth_${node}.in"
+	done
+}
+
+runPipes() {
+	echo "Running" ${nodeNames[@]} "in" $clusterDir
+	rm /tmp/peth_*
+	pushd $clusterDir > /dev/null 2>&1
+
+	local peth="$1" cmd
+	echo "Console input for $node will be taken from $ci" > /tmp/peth_pids
+	declare -i port=3001
+	for nodeName in ${nodeNames[@]} ; do
+		cmd="geth --syncmode "'"full"'" --datadir $nodeName --port $port "
+		cmd+="--nat extip:127.0.0.1 |& $peth -r $nodeName"
+		ttab -w "$cmd; exit"
+		port+=1
+	done
+	sleep 2
+	for nodeName in ${nodeNames[@]} ; do
+		cmd="geth attach ipc:$nodeName/geth.ipc"
+		cmd+=" < /tmp/peth_${nodeName}.in > /tmp/peth_${nodeName}.out 2>&1"
+		ttab -w "$cmd; exit"
+		$peth -a $nodeName &
+	done
+	sleep 2
+	for nodeName in ${nodeNames[@]} ; do
+		cmd="cat /tmp/peth_${nodeName}.in | $peth -w $nodeName $node $ci | "
+		cmd+="geth attach ipc:$nodeName/geth.ipc 2>&1"
+		ttab -w "$cmd; exit"
+		$peth -i $nodeName $node $ci &
+	done
+
+	popd > /dev/null 2>&1
+	tail -f /tmp/peth_pids
+}
+
+step13() {
+	[[ $parentWindow == 0 ]] && exit # not a parent window, just exit
+
+	local cmd
+	pushd $clusterDir > /dev/null 2>&1
+
+	printf '\n%s\n\n\t%s\n\n%s\n\n\t%s\n\n%s\n' \
+		'In this final step, we will manually attach another node to our contract. Copy and paste this to the topmost console window:' \
+		'var mp_sol_merkleproofs = mp_sol_merkleproofsContract.at(' \
+		"Then copy and paste the address of the contract from the console window underneath, type ')' and press ENTER. Finally, copy and paste this and press ENTER:" \
+		'mp_sol_merkleproofs.getLatestProofRootHash()' \
+		'Observe the same result ("0xdeadbeef00000000000000000000000000000000000000000000000000000000") in both windows.'
+	cmd="geth --preload "'"'"$co"'"'" attach ipc:$nodeOther/geth.ipc 2>&1"
+	ttab -w "$cmd; exit"
+	
+	popd > /dev/null 2>&1
+	exit
+}
+
+startMining() {
+#	echo "startMining: pid $$" >> /tmp/peth_pids
+	sleep 2; echo "personal.unlockAccount(eth.coinbase, '$PETH_PASSPHRASE', $duration)"
+	sleep 2; echo 'eth.defaultAccount = eth.coinbase'
+	sleep 2; echo 'miner.start()'
+}
+
+restartMining() {
+	printf '%s\n- %s\n\n' "$@" >> /tmp/peth_pids
+	sleep 2; echo 'miner.stop()'
+	startMining
+}
+
+writePipe() {
+	local line nodeName="$1"
+	while true ; do
+		if read line ; then
+			echo $line
+		else break; fi
+	done
+	sleep 2; echo 'net.peerCount'
+	startMining
+
+	# Perform scheduled activities; restart mining if/when a node emits a line like this:
+	# WARN [09-11|16:12:49] Block sealing failed                     err="authentication needed: password or unlock"
+	while true ; do
+		if read line < "/tmp/peth_$nodeName"; then
+			[[ ${line:0:6} == "ciPipe" ]] && cat "$ci"
+			[[ ${line:0:7} == "address" ]] && echo 'mp_sol_merkleproofs.address'
+			[[ ${line:0:12} == "publishProof" ]] && \
+				echo 'mp_sol_merkleproofs.publishProof("0xdeadbeef")'
+			[[ ${line:0:7} == "getLPRH" ]] && \
+				echo 'mp_sol_merkleproofs.getLatestProofRootHash()'
+			[[ ${line:22:20} == 'Block sealing failed' ]] && \
+				restartMining "$line" "$nodeName"
+		else break; fi
+	done
+}
+
+ciSchedule() {
+	local line nodeName="$1"
+	[[ "$nodeName" != "$node" ]] && return
+
+	sleep 12; echo "ciPipe" > "/tmp/peth_$node"
+	sleep 12; echo 'address' > "/tmp/peth_$node"
+	sleep 12; echo 'publishProof' > "/tmp/peth_$node"
+	sleep 12; echo 'getLPRH' > "/tmp/peth_$node"
+}
+
+readPipe() {
+	local line nodeName="$1"
+	mkfifo "/tmp/peth_$nodeName"
+#	echo "readPipe: $nodeName pid $$" >> /tmp/peth_pids
+	echo "admin.nodeInfo.enode" > "/tmp/peth_${nodeName}.in"
+	while true ; do
+		if read line; then
+			echo "$line"
+			[[ ${line:0:4} == 'WARN' ]] && echo "$line" > "/tmp/peth_$nodeName"
+		else break; fi
+	done
+}
+
+# --- Begin: STANDARD HELPER FUNCTIONS
+
+die() { echo "$kTHIS_NAME: ERROR: ${1:-"ABORTING due to unexpected error."}" 1>&2; exit ${2:-1}; }
+dieSyntax() { echo "$kTHIS_NAME: ARGUMENT ERROR: ${1:-"Invalid argument(s) specified."} Use -h for help." 1>&2; exit 2; }
+
+# SYNOPSIS
+#   openUrl <url>
+# DESCRIPTION
+#   Opens the specified URL in the system's default browser.
+openUrl() {
+  local url=$1
+  open "$url" || { echo "Cannot locate or failed to open default browser; please go to '$url' manually." >&2; return 1; }
+}
+
+# Prints the embedded Markdown-formatted man-page source to stdout.
+printManPageSource() {
+  sed -n -e $'/^: <<\'EOF_MAN_PAGE\'/,/^EOF_MAN_PAGE/ { s///; t\np;}' "$BASH_SOURCE"
+}
+
+# Opens the man page, if installed; otherwise, tries to display the embedded Markdown-formatted man-page source; if all else fails: tries to display the man page online.
+openManPage() {
+  local pager embeddedText 
+  if ! man 1 "$kTHIS_NAME" 2>/dev/null; then
+    # 2nd attempt: if present, display the embedded Markdown-formatted man-page source
+    embeddedText=$(printManPageSource)
+    if [[ -n $embeddedText ]]; then
+      pager='more'
+      command -v less &>/dev/null && pager='less' # see if the non-standard `less` is available, because it's preferable to the POSIX utility `more`
+      printf '%s\n' "$embeddedText" | "$pager"
+    else # 3rd attempt: open the the man page on the utility's website
+      openUrl "${kTHIS_HOMEPAGE}/doc/${kTHIS_NAME}.md"
+    fi
+  fi  
+}
+
+# Prints the contents of the synopsis chapter of the embedded Markdown-formatted man-page source for quick reference.
+printUsage() {
+  local embeddedText
+  # Extract usage information from the SYNOPSIS chapter of the embedded Markdown-formatted man-page source.
+  embeddedText=$(sed -n -e $'/^: <<\'EOF_MAN_PAGE\'/,/^EOF_MAN_PAGE/!d; /^## SYNOPSIS/,/^#/{ s///; t\np; }' "$BASH_SOURCE")
+  if [[ -n $embeddedText ]]; then
+    # Print extracted synopsis chapter - remove backticks for uncluttered display.
+    printf '%s\n\n' "$embeddedText" | tr -d '`'
+  else # No SYNOPIS chapter found; fall back to displaying the man page.
+    echo "WARNING: usage information not found; opening man page instead." >&2
+    openManPage
+  fi
+}
+
+# --- End: STANDARD HELPER FUNCTIONS
+
+trap step13 SIGINT # On <CTRL-C> in the parent window, connect another node to our contract
+
+# ---  PROCESS STANDARD, OUTPUT-INFO-THEN-EXIT OPTIONS.
+case $1 in
+  --version)
+    # Output version number and exit, if requested.
+    echo "$kTHIS_NAME $kTHIS_VERSION"$'\nFor license information and more, visit '"$kTHIS_HOMEPAGE"; exit 0
+    ;;
+  -h|--help)
+    # Print usage information and exit.
+    printUsage; exit
+    ;;
+  --man)
+    # Display the manual page and exit, falling back to printing the embedded man-page source.
+    openManPage; exit
+    ;;
+  --man-source) # private option, used by `make update-doc`
+    # Print raw, embedded Markdown-formatted man-page source and exit
+    printManPageSource; exit
+    ;;
+  --home)
+    # Open the home page and exit.
+    openUrl "$kTHIS_HOMEPAGE"; exit
+    ;;
+esac
+
+# --- MAIN BODY
+
+# When we make a new cluster, 
+# we make a new account for each node; the account is identifiable by its unique address.
+declare -a nodeNames=("node0" "node1" "node2") addresses
+declare node=${3:-"node2"} ci=${4:-"../../node2.js"} nodeOther='node1' co='../../node1.js'
+clusterName='cluster'
+clusterDir="$PWD/$clusterName"
+PETH_PASSPHRASE='Ethereum Is Fun!' # TODO: set PETH_PASSPHRASE outside this script
+duration=600 # initial duration in seconds of how long an account can be unlocked (this duration will grow while the re-unlocking loops)
+declare -i parentWindow=0 # not a parent window by default
+
+while getopts ':CRMr:a:w:i:' opt; do  # $opt will receive the option *letters* one by one; a trailing : means that an arg. is required, reported in $OPTARG.
+  [[ $opt == '?' ]] && dieSyntax "Unknown option: -$OPTARG"
+  [[ $opt == ':' ]] && dieSyntax "Option -$OPTARG is missing its argument."
+  case "$opt" in
+    C)
+      makeAccounts; doGenesis; initNodes; exit
+      ;;
+    R)
+      parentWindow=1 # we are in the parent window now
+      runPipes "$PWD/$0"; exit
+      ;;
+    M)
+      echo "reMoving $clusterDir"; rm -rf $clusterDir; exit
+      ;;
+    r) # private option, used by the runPipes function 
+      readPipe "$OPTARG"; exit
+      ;;
+    a) # private option, used by the runPipes function
+      addPeer "$OPTARG"; exit
+      ;;
+    i) # private option, used by the runPipes function
+      ciSchedule "$OPTARG"; exit
+      ;;
+    w) # private option, used by the runPipes function
+      writePipe "$OPTARG"; exit
+      ;;
+    *) # An unrecognized switch.
+      dieSyntax "DESIGN ERROR: unanticipated option: $opt"
+      ;;
+  esac
+done
+
+####
+# MAN PAGE MARKDOWN SOURCE
+#  - Place a Markdown-formatted version of the man page for this script
+#    inside the here-document below.
+#    The document must be formatted to look good in all 3 viewing scenarios:
+#     - as a man page, after conversion to ROFF with marked-man
+#     - as plain text (raw Markdown source)
+#     - as HTML (rendered Markdown)
+#  Markdown formatting tips:
+#   - GENERAL
+#     To support plain-text rendering in the terminal, limit all lines to 80 chars.,
+#     and, for similar rendering as HTML, *end every line with 2 trailing spaces*.
+#   - HEADINGS
+#     - For better plain-text rendering, leave an empty line after a heading.
+#       marked-man will remove it from the ROFF version.
+#     - The first heading must be a level-1 heading containing the utility
+#       name and very brief description; append the manual-section number 
+#       directly to the CLI name; e.g.:
+#         # foo(1) - does bar
+#     - The 2nd, level-2 heading must be '## SYNOPSIS' and the chapter's body
+#       must render reasonably as plain text, because it is printed to stdout
+#       when  `-h`, `--help` is specified:
+#         Use 4-space indentation without markup for both the syntax line and the
+#         block of brief option descriptions; represent option-arguments and operands
+#         in angle brackets; e.g., '<foo>'
+#     - All other headings should be level-2 headings in ALL-CAPS.
+#   - TEXT
+#      - Use NO indentation for regular chapter text; if you do, it will 
+#        be indented further than list items.
+#      - Use 4-space indentation, as usual, for code blocks.
+#      - Markup character-styling markup translates to ROFF rendering as follows:
+#         `...` and **...** render as bolded (red) text
+#         _..._ and *...* render as word-individually underlined text
+#   - LISTS
+#      - Indent list items by 2 spaces for better plain-text viewing, but note
+#        that the ROFF generated by marked-man still renders them unindented.
+#      - End every list item (bullet point) itself with 2 trailing spaces too so
+#        that it renders on its own line.
+#      - Avoid associating more than 1 paragraph with a list item, if possible,
+#        because it requires the following trick, which hampers plain-text readability:
+#        Use '&nbsp;<space><space>' in lieu of an empty line.
+####
+: <<'EOF_MAN_PAGE'
+# peth(1) - Create / Run / reMove a private Ethereum cluster  
+
+## SYNOPSIS  
+
+Creates / Runs / reMoves a private Ethereum cluster.  
+
+    peth -C|-R|-M  
+
+    -C      create new cluster (the node names are presently hardcoded)  
+    -R      run the cluster (actual behavior depends on the script version)  
+    -M      remove the cluster directory (its name is presently hardcoded)  
+
+Standard options: `--help`, `--man`, `--version`, `--home`  
+
+## DESCRIPTION  
+
+This version of `peth` automates the procedure outlined in Surya's article
+**"Provisioning a Local Private Ethereum Network with Puppeth"**. This is an 
+excellent article. Its URL is "https://modalduality.org/posts/puppeth/".
+
+The script takes care of re-unlocking accounts, so that it can run for hours
+without human intervention. The nodes in the cluster all listen on 127.0.0.1,
+so that there is no need for the Internet connection. Presently, the cluster
+is configured to have three nodes (node0, node1, and node2).
+
+## STANDARD OPTIONS
+
+All standard options provide information only.
+
+ * `-h, --help`  
+    Prints the contents of the synopsis chapter to stdout for quick reference.
+
+ * `--man`  
+    Displays this manual page, which is a helpful alternative to using `man`, 
+    if the manual page isn't installed.
+
+ * `--version`  
+    Prints version information.
+    
+ * `--home`  
+    Opens this utility's home page in the system's default web browser.
+
+## USAGE
+
+For usage example, watch this URL:
+
+## LICENSE
+
+For license information and more, visit this utility's home page by running  
+`peth --home`.
+
+## ACKNOWLEDGEMENTS
+
+Aside of the article mentioned above, this script gratefully depends on the  
+`ttab` script (https://github.com/mklement0/ttab). The latter is not only  
+a runtime dependency, but has also been used as a template for this script.  
+EOF_MAN_PAGE
