@@ -270,9 +270,9 @@ esac
 # When we make a new cluster, 
 # we make a new account for each node; the account is identifiable by its unique address.
 declare -a nodeNames=("node0" "node1" "node2") addresses
-declare node=${3:-"node2"} ci=${4:-"../../node2.js"} nodeOther='node1' co='../../node1.js'
+declare node=${3:-"node2"} ci=${4:-"$PWD/node2.js"} nodeOther='node1' co="$PWD/node1.js"
 clusterName='cluster'
-clusterDir="$PWD/$clusterName"
+clusterDir="$PWD/../$clusterName"
 PETH_PASSPHRASE='Ethereum Is Fun!' # TODO: set PETH_PASSPHRASE outside this script
 duration=600 # initial duration in seconds of how long an account can be unlocked (this duration will grow while the re-unlocking loops)
 declare -i parentWindow=0 # not a parent window by default
