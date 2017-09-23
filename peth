@@ -127,7 +127,6 @@ step13() {
 }
 
 startMining() {
-#	echo "startMining: pid $$" >> /tmp/peth_pids
 	sleep 2; echo "personal.unlockAccount(eth.coinbase, '$PETH_PASSPHRASE', $duration)"
 	sleep 2; echo 'eth.defaultAccount = eth.coinbase'
 	sleep 2; echo 'miner.start()'
@@ -153,12 +152,12 @@ writePipe() {
 	# WARN [09-11|16:12:49] Block sealing failed                     err="authentication needed: password or unlock"
 	while true ; do
 		if read line < "/tmp/peth_$nodeName"; then
-			[[ ${line:0:6} == "ciPipe" ]] && cat "$ci"
-			[[ ${line:0:7} == "address" ]] && echo 'mp_sol_merkleproofs.address'
+			[[ ${line:0:6} == "ciPipe" ]] && cat "$ci" && continue
+			[[ ${line:0:7} == "address" ]] && echo 'mp_sol_merkleproofs.address' && continue
 			[[ ${line:0:12} == "publishProof" ]] && \
-				echo 'mp_sol_merkleproofs.publishProof("0xdeadbeef")'
+				echo 'mp_sol_merkleproofs.publishProof("0xdeadbeef")' && continue
 			[[ ${line:0:7} == "getLPRH" ]] && \
-				echo 'mp_sol_merkleproofs.getLatestProofRootHash()'
+				echo 'mp_sol_merkleproofs.getLatestProofRootHash()' && continue
 			[[ ${line:22:20} == 'Block sealing failed' ]] && \
 				restartMining "$line" "$nodeName"
 		else break; fi
