@@ -19,7 +19,7 @@ va() {
 }
 
 makeAccounts() {
-	echo "Creating ${nodeNames[@]} in $clusterDir..."
+	echo "Creating ${nodeNames[@]} in $clusterDir"
 	mkdir -p `va $clusterDir ${nodeNames[@]}`
 	pushd $clusterDir > /dev/null 2>&1
 	i=0
@@ -100,30 +100,45 @@ runPipes() {
 		cmd="cat /tmp/peth_${nodeName}.in | $peth -w $nodeName $node $ci | "
 		cmd+="geth attach ipc:$nodeName/geth.ipc 2>&1"
 		ttab -w "$cmd; exit"
-		$peth -i $nodeName $node $ci &
 	done
 
 	popd > /dev/null 2>&1
-	tail -f /tmp/peth_pids
 }
 
 step13() {
 	[[ $parentWindow == 0 ]] && exit # not a parent window, just exit
 
-	local cmd
+	local cmd scriptDir="$PWD"
 	pushd $clusterDir > /dev/null 2>&1
 
-	printf '\n%s\n\n\t%s\n\n%s\n\n\t%s\n\n%s\n' \
-		'In this final step, we will manually attach another node to our contract. Copy and paste this to the topmost console window:' \
-		'var mp_sol_merkleproofs = mp_sol_merkleproofsContract.at(' \
-		"Then copy and paste the address of the contract from the console window underneath, type ')' and press ENTER. Finally, copy and paste this and press ENTER:" \
-		'mp_sol_merkleproofs.getLatestProofRootHash()' \
-		'Observe the same result ("0xdeadbeef00000000000000000000000000000000000000000000000000000000") in both windows.'
-	cmd="geth --preload "'"'"$co"'"'" attach ipc:$nodeOther/geth.ipc 2>&1"
-	ttab -w "$cmd; exit"
+#	printf '\n%s\n\n\t%s\n\n%s\n\n\t%s\n\n%s\n' \
+#		'In this final step, we will manually attach another node to our contract. Copy and paste this to the topmost console window:' \
+#		'var mp_sol_merkleproofs = mp_sol_merkleproofsContract.at(' \
+#		"Then copy and paste the address of the contract from the console window underneath, type ')' and press ENTER. Finally, copy and paste this and press ENTER:" \
+#		'mp_sol_merkleproofs.getLatestProofRootHash()' \
+#		'Observe the same result ("0xdeadbeef00000000000000000000000000000000000000000000000000000000") in both windows.'
+	PS3='Select # of the node to attach another console to: '
+	select name in ${nodeNames[@]}; do console $name $scriptDir; done
 	
 	popd > /dev/null 2>&1
 	exit
+}
+
+console() {
+	local nodeName="$1" scriptDir="$2" mode file cmd='geth '
+	PS3='Select # of the console init mode: '
+	select mode in no-preload preload; do break; done
+	case $mode in
+		no-preload)
+			;;
+		preload)
+			PS3='Select # of the file to preload: '
+			select file in `ls $scriptDir/*.js`; do cmd+="--preload "'"'"$file"'" '; break; done
+			;;
+	esac
+	cmd+="attach ipc:$nodeName/geth.ipc 2>&1"
+	ttab -w "$cmd; exit"
+	PS3='Select # of the node to attach another console to: '
 }
 
 startMining() {
@@ -146,32 +161,32 @@ writePipe() {
 		else break; fi
 	done
 	sleep 2; echo 'net.peerCount'
-	startMining
+	startMining # unlocking the user account that is associated with the node
 
 	# Perform scheduled activities; restart mining if/when a node emits a line like this:
 	# WARN [09-11|16:12:49] Block sealing failed                     err="authentication needed: password or unlock"
 	while true ; do
 		if read line < "/tmp/peth_$nodeName"; then
-			[[ ${line:0:6} == "ciPipe" ]] && cat "$ci" && continue
-			[[ ${line:0:7} == "address" ]] && echo 'mp_sol_merkleproofs.address' && continue
-			[[ ${line:0:12} == "publishProof" ]] && \
-				echo 'mp_sol_merkleproofs.publishProof("0xdeadbeef")' && continue
-			[[ ${line:0:7} == "getLPRH" ]] && \
-				echo 'mp_sol_merkleproofs.getLatestProofRootHash()' && continue
+			[[ ${line:0:6} == "ciPipe" ]] && cat "${line:7}" && continue
 			[[ ${line:22:20} == 'Block sealing failed' ]] && \
 				restartMining "$line" "$nodeName"
 		else break; fi
 	done
 }
 
-ciSchedule() {
-	local line nodeName="$1"
-	[[ "$nodeName" != "$node" ]] && return
-
-	sleep 12; echo "ciPipe" > "/tmp/peth_$node"
-	sleep 12; echo 'address' > "/tmp/peth_$node"
-	sleep 12; echo 'publishProof' > "/tmp/peth_$node"
-	sleep 12; echo 'getLPRH' > "/tmp/peth_$node"
+ciNode() {
+	local nodeName="$1" ciSource file
+	PS3='Select # of the console input source: '
+	select ciSource in keyboard file; do break; done
+	case $ciSource in
+		keyboard)
+			;;
+		file)
+			PS3='Select # of the input file: '
+			select file in *.js; do echo "ciPipe $PWD/$file" > "/tmp/peth_$nodeName"; break; done
+			;;
+	esac
+	PS3='Select # of the node to input data to: '
 }
 
 readPipe() {
@@ -268,15 +283,15 @@ esac
 
 # When we make a new cluster, 
 # we make a new account for each node; the account is identifiable by its unique address.
-declare -a nodeNames=("node0" "node1" "node2") addresses
-declare node=${3:-"node2"} ci=${4:-"$PWD/node2.js"} nodeOther='node1' co="$PWD/node1.js"
+declare -a nodeNames=("node1" "node2" "node3") addresses
+declare nodeOther='node1' co="$PWD/node1.js"
 clusterName='cluster'
 clusterDir="$PWD/../$clusterName"
 PETH_PASSPHRASE='Ethereum Is Fun!' # TODO: set PETH_PASSPHRASE outside this script
 duration=600 # initial duration in seconds of how long an account can be unlocked (this duration will grow while the re-unlocking loops)
 declare -i parentWindow=0 # not a parent window by default
 
-while getopts ':CRMr:a:w:i:' opt; do  # $opt will receive the option *letters* one by one; a trailing : means that an arg. is required, reported in $OPTARG.
+while getopts ':CRMr:a:w:' opt; do  # $opt will receive the option *letters* one by one; a trailing : means that an arg. is required, reported in $OPTARG.
   [[ $opt == '?' ]] && dieSyntax "Unknown option: -$OPTARG"
   [[ $opt == ':' ]] && dieSyntax "Option -$OPTARG is missing its argument."
   case "$opt" in
@@ -285,7 +300,7 @@ while getopts ':CRMr:a:w:i:' opt; do  # $opt will receive the option *letters* o
       ;;
     R)
       parentWindow=1 # we are in the parent window now
-      runPipes "$PWD/$0"; exit
+      runPipes "$PWD/$0"
       ;;
     M)
       echo "reMoving $clusterDir"; rm -rf $clusterDir; exit
@@ -296,9 +311,6 @@ while getopts ':CRMr:a:w:i:' opt; do  # $opt will receive the option *letters* o
     a) # private option, used by the runPipes function
       addPeer "$OPTARG"; exit
       ;;
-    i) # private option, used by the runPipes function
-      ciSchedule "$OPTARG"; exit
-      ;;
     w) # private option, used by the runPipes function
       writePipe "$OPTARG"; exit
       ;;
@@ -307,6 +319,8 @@ while getopts ':CRMr:a:w:i:' opt; do  # $opt will receive the option *letters* o
       ;;
   esac
 done
+PS3='Select # of the node to take input: '
+select name in ${nodeNames[@]}; do ciNode $name; done
 
 ####
 # MAN PAGE MARKDOWN SOURCE
@@ -374,7 +388,7 @@ excellent article. Its URL is "https://modalduality.org/posts/puppeth/".
 The script takes care of re-unlocking accounts, so that it can run for hours
 without human intervention. The nodes in the cluster all listen on 127.0.0.1,
 so that there is no need for the Internet connection. Presently, the cluster
-is configured to have three nodes (node0, node1, and node2).
+is configured to have three nodes (node1, node2, and node3).
 
 ## STANDARD OPTIONS
 
