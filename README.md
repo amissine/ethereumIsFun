@@ -21,7 +21,7 @@ excellent article. Its URL is "https://modalduality.org/posts/puppeth/".
 The script takes care of re-unlocking accounts, so that it can run for hours
 without human intervention. The nodes in the cluster all listen on 127.0.0.1,
 so that there is no need for the Internet connection. Presently, the cluster
-is configured to have three nodes (node0, node1, and node2).
+is configured to have three nodes (node1, node2, and node3).
 
 ## STANDARD OPTIONS
 
