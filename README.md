@@ -14,7 +14,9 @@ Standard options: `--help`, `--man`, `--version`, `--home`
 
 ## DESCRIPTION  
 
-This version of `peth` automates the procedure outlined in Surya's article
+This version of `peth` has menus that will hopefully make the utility more
+flexible. The usage example (see the link below)
+automates the procedure outlined in Surya's article
 **"Provisioning a Local Private Ethereum Network with Puppeth"**. This is an 
 excellent article. Its URL is "https://modalduality.org/posts/puppeth/".
 
@@ -42,7 +44,7 @@ All standard options provide information only.
 
 ## USAGE
 
-For usage example, watch this URL: https://youtu.be/TdiVjD7AWlo
+For usage example, watch this URL: https://youtu.be/kYXurTOqIDI
 
 ## LICENSE
 
