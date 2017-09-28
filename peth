@@ -78,7 +78,6 @@ runPipes() {
 	rm /tmp/peth_*
 
 	local peth="$1" cmd
-	echo "Console input for $node will be taken from $ci" > /tmp/peth_pids
 	declare -i port=3001
 	for nodeName in ${nodeNames[@]} ; do
 		cmd="geth --syncmode "'"full"'" --datadir $nodeName --port $port "
@@ -96,7 +95,7 @@ runPipes() {
 	sleep 2
 	for nodeName in ${nodeNames[@]} ; do
 		cmd="cat /tmp/peth_${nodeName}.in | $peth -w $nodeName $node $ci | "
-		cmd+="geth attach ipc:$nodeName/geth.ipc 2>&1"
+		cmd+="geth attach ipc:$nodeName/geth.ipc |& tee -i /tmp/peth_${nodeName}.co"
 		ttab -d "$clusterDir" -w "$cmd; exit"
 	done
 }
@@ -106,19 +105,6 @@ step13() {
 
 	printf '\nReceived SIGINT in the parent window, exiting\n'
 	exit
-}
-
-anotherConsole() {
-	local file cmd='geth '
-	echo "--- Attach another console to one of the nodes:"
-	PS3='# of the node to attach another console to? '
-	select name in ${nodeNames[@]}; do
-		noInput=0; PS3='# of the file to preload? '
-		select file in *.js; do cmd+="--preload "'"'"$PWD/$file"'" '; break; done
-		cmd+="attach ipc:$nodeName/geth.ipc 2>&1"
-		ttab -d $clusterDir -w "$cmd; exit"
-		PS3='# of the node to attach another console to? '
-	done
 }
 
 startMining() {
@@ -154,13 +140,34 @@ writePipe() {
 	done
 }
 
-ciFile() {
-	printf '\n--- Do console input from a file:\n'
+ciFiles() {
+	printf '\n--- Do console input from a file: ---\n'
 	PS3='# of the node to take input? '
 	select name in ${nodeNames[@]}; do
-		noInput=0; PS3='# of the input file? '
+		PS3='# of the input file? '
 		select file in *.js; do echo "ciPipe $PWD/$file" > "/tmp/peth_$nodeName"; break; done
+		runShellScript; addConsole
+		printf '\n--- Do console input from a file: ---\n'
 		PS3='# of the node to take input? '
+	done
+}
+
+runShellScript() {
+	echo '--- Run shell script: ---'
+	PS3='# of the file to run? '
+	select file in *.bash; do $SHELL -c $PWD/$file; break; done
+}
+
+addConsole() {
+	local file cmd='geth '
+	echo "--- Attach another console to one of the nodes: ---"
+	PS3='# of the node to attach another console to? '
+	select name in ${nodeNames[@]}; do
+		PS3='# of the file to preload? '
+		select file in *.js; do cmd+="--preload "'"'"$PWD/$file"'" '; break; done
+		cmd+="attach ipc:$nodeName/geth.ipc 2>&1"
+		ttab -d $clusterDir -w "$cmd; exit"
+		break
 	done
 }
 
@@ -263,7 +270,7 @@ clusterName='cluster'
 clusterDir="$PWD/../$clusterName"
 PETH_PASSPHRASE='Ethereum Is Fun!' # TODO: set PETH_PASSPHRASE outside this script
 duration=600 # initial duration in seconds of how long an account can be unlocked (this duration will grow while the re-unlocking loops)
-declare -i noInput parentWindow=0 # not a parent window by default
+declare -i parentWindow=0 # not a parent window by default
 
 while getopts ':CRMr:a:w:' opt; do  # $opt will receive the option *letters* one by one; a trailing : means that an arg. is required, reported in $OPTARG.
   [[ $opt == '?' ]] && dieSyntax "Unknown option: -$OPTARG"
@@ -294,10 +301,7 @@ while getopts ':CRMr:a:w:' opt; do  # $opt will receive the option *letters* one
   esac
 done
 [[ $parentWindow == 0 ]] && dieSyntax
-while true; do
-	noInput=1; ciFile
-	anotherConsole; [[ $noInput == 1 ]] && break
-done
+ciFiles
 
 ####
 # MAN PAGE MARKDOWN SOURCE

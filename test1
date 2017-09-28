@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+sleep 25
+
+# --- Do console input from a file: ---
+# 1) node1
+# 2) node2
+# 3) node3
+# # of the node to take input? 3
+echo 3; sleep 1
+
+# 1) node1-appended.js  3) node2.js
+# 2) node1.js	      4) node3.js
+# # of the input file? 4
+echo 4; sleep 25
+
+# --- Run shell script: ---
+# 1) node1.bash
+# # of the file to run? 1
+echo 1; sleep 1
+
+# --- Attach another console to one of the nodes: ---
+# 1) node1
+# 2) node2
+# 3) node3
+# # of the node to attach another console to? 1
+echo 1; sleep 1
+
+# 1) node1-appended.js  3) node2.js
+# 2) node1.js	      4) node3.js
+# # of the file to preload? 1
+echo 1
+
+# --- Do console input from a file: ---
+# # of the node to take input? ^D

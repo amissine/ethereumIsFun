@@ -8,11 +8,10 @@ input_publisher_name,
     gas: '4700000'
 }, function (e, contract){
     if (typeof contract.address !== 'undefined') {
-     console.log('Contract mined! address: ' + contract.address + ' transactionHash: ' + contract.transactionHash);
+     console.log('contract.address=' + contract.address);
     }
 })
 
-setTimeout(function(){ console.log('"' + mp_sol_merkleproofs.address + '"'); }, 12000);
-setTimeout(function(){ mp_sol_merkleproofs.publishProof('0xdeadbeef'); }, 13000);
-setTimeout(function(){ console.log(mp_sol_merkleproofs.getLatestProofRootHash()); }, 25000);
+setTimeout(function(){ mp_sol_merkleproofs.publishProof('0xdeadbeef'); }, 12000);
+setTimeout(function(){ console.log(mp_sol_merkleproofs.getLatestProofRootHash()); }, 24000);
 
