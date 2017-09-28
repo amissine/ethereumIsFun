@@ -7,15 +7,15 @@ Creates / Runs / reMoves a private Ethereum cluster.
     peth -C|-R|-M  
 
     -C      create new cluster (the node names are presently hardcoded)  
-    -R      run the cluster (actual behavior depends on the script version)  
+    -R      run the cluster  
     -M      remove the cluster directory (its name is presently hardcoded)  
 
 Standard options: `--help`, `--man`, `--version`, `--home`  
 
 ## DESCRIPTION  
 
-This version of `peth` has menus that will hopefully make the utility more
-flexible. The usage example (see the link below)
+This version of `peth` has menus that make the utility more
+flexible. The usage example (see below)
 automates the procedure outlined in Surya's article
 **"Provisioning a Local Private Ethereum Network with Puppeth"**. This is an 
 excellent article. Its URL is "https://modalduality.org/posts/puppeth/".
@@ -44,7 +44,7 @@ All standard options provide information only.
 
 ## USAGE
 
-For usage example, watch this URL: https://youtu.be/kYXurTOqIDI
+    ./peth -M; ./peth -C; ./test1 | ./peth -R
 
 ## LICENSE
 
