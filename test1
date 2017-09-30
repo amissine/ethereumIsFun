@@ -12,7 +12,7 @@ echo 3; sleep 1
 # 1) node1-appended.js  3) node2.js
 # 2) node1.js	      4) node3.js
 # # of the input file? 4
-echo 4; sleep 25
+echo 4; sleep 27
 
 # --- Run shell script: ---
 # 1) node1.bash

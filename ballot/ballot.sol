@@ -1,7 +1,4 @@
 pragma solidity ^0.4.16;
-/*
-	solc --abi --bin --gas --overwrite -o dapp-bin ballot.sol
-*/
 
 /// @title Voting with delegation.
 contract Ballot {
@@ -9,16 +6,16 @@ contract Ballot {
     // be used for variables later.
     // It will represent a single voter.
     struct Voter {
-        uint weight; // weight is accumulated by delegation
+        uint8 weight; // weight is accumulated by delegation
         bool voted;  // if true, that person already voted
         address delegate; // person delegated to
-        uint vote;   // index of the voted proposal
+        uint8 vote;   // index of the voted proposal
     }
 
     // This is a type for a single proposal.
     struct Proposal {
         bytes32 name;   // short name (up to 32 bytes)
-        uint voteCount; // number of accumulated votes
+        uint8 voteCount; // number of accumulated votes
     }
 
     address public chairperson;
@@ -29,7 +26,7 @@ contract Ballot {
 
     // A dynamically-sized array of `Proposal` structs.
     Proposal[] public proposals;
-
+/*
     /// Create a new ballot to choose one of `proposalNames`.
     function Ballot(bytes32[] proposalNames) {
         chairperson = msg.sender;
@@ -38,7 +35,7 @@ contract Ballot {
         // For each of the provided proposal names,
         // create a new proposal object and add it
         // to the end of the array.
-        for (uint i = 0; i < proposalNames.length; i++) {
+        for (uint8 i = 0; i < proposalNames.length; i++) {
             // `Proposal({...})` creates a temporary
             // Proposal object and `proposals.push(...)`
             // appends it to the end of `proposals`.
@@ -48,17 +45,54 @@ contract Ballot {
             }));
         }
     }
+    Need to find out how to pass byte32[] when calling contractBallot.new(...) constructor.
+    Until then:
+*/
+    /// Create a new ballot to choose one of `proposalNames`.
+    function Ballot(string proposalNames) {
+        chairperson = msg.sender;
+        voters[chairperson].weight = 1;
+/* Keeping proposals empty...
+        // For each of the provided proposal names,
+        // create a new proposal object and add it
+        // to the end of the array.
+        for (uint8 i = 0; i < proposalNames.length; i++) {
+            // `Proposal({...})` creates a temporary
+            // Proposal object and `proposals.push(...)`
+            // appends it to the end of `proposals`.
+            proposals.push(Proposal({
+                name: proposalNames[i],
+                voteCount: 0
+            }));
+        }
+*/
+    }
+
+    // Give `_voters` the right to vote on this ballot.
+    // May only be called by `chairperson`.
+    function giveRightsToVote(address[] _voters) {
+        for (uint8 i = 0; i < _voters.length; i++) {
+            address voter = _voters[i];
+            // If the argument of `require` evaluates to `false`,
+            // it terminates and reverts all changes to
+            // the state and to Ether balances, and refunds 
+	    // the remaining gas to the caller. It is often
+            // a good idea to use this if functions are
+            // called incorrectly.
+            require((msg.sender == chairperson) && !voters[voter].voted && (voters[voter].weight == 0));
+            voters[voter].weight = 1;
+	}
+    }
 
     // Give `voter` the right to vote on this ballot.
     // May only be called by `chairperson`.
     function giveRightToVote(address voter) {
         // If the argument of `require` evaluates to `false`,
         // it terminates and reverts all changes to
-        // the state and to Ether balances. It is often
+        // the state and to Ether balances, and refunds 
+	// the remaining gas to the caller. It is often
         // a good idea to use this if functions are
-        // called incorrectly. But watch out, this
-        // will currently also consume all provided gas
-        // (this is planned to change in the future).
+        // called incorrectly.
         require((msg.sender == chairperson) && !voters[voter].voted && (voters[voter].weight == 0));
         voters[voter].weight = 1;
     }
@@ -105,7 +139,7 @@ contract Ballot {
 
     /// Give your vote (including votes delegated to you)
     /// to proposal `proposals[proposal].name`.
-    function vote(uint proposal) {
+    function vote(uint8 proposal) {
         Voter storage sender = voters[msg.sender];
         require(!sender.voted);
         sender.voted = true;
@@ -120,10 +154,10 @@ contract Ballot {
     /// @dev Computes the winning proposal taking all
     /// previous votes into account.
     function winningProposal() constant
-            returns (uint winningProposal_idx)
+            returns (uint8 winningProposal_idx)
     {
-        uint winningVoteCount = 0;
-        for (uint p = 0; p < proposals.length; p++) {
+        uint8 winningVoteCount = 0;
+        for (uint8 p = 0; p < proposals.length; p++) {
             if (proposals[p].voteCount > winningVoteCount) {
                 winningVoteCount = proposals[p].voteCount;
                 winningProposal_idx = p;

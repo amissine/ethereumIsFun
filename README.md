@@ -42,9 +42,10 @@ All standard options provide information only.
  * `--home`  
     Opens this utility's home page in the system's default web browser.
 
-## USAGE
+## USAGE EXAMPLES
 
     ./peth -M; ./peth -C; ./test1 | ./peth -R
+    ./peth -M; ./peth -C; mkdir dapp-bin; ballot/ballot.bash 
 
 ## LICENSE
 
