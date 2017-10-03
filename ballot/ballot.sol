@@ -27,6 +27,21 @@ contract Ballot {
     // A dynamically-sized array of `Proposal` structs.
     Proposal[] public proposals;
 /*
+    /// A helper function to work around the issue described below.
+    function bytes32a(string s) internal returns(bytes32[]){
+        bytes32[] memory result;
+	bytes32 item;
+	bytes memory s2bytes = bytes(s);
+
+	if (s2bytes.length <= 32) {
+            assembly {
+                item := mload(add(s, 32))
+            }
+            result[0] = item;
+        } // TODO: else
+	return result;
+    }
+/*
     /// Create a new ballot to choose one of `proposalNames`.
     function Ballot(bytes32[] proposalNames) {
         chairperson = msg.sender;
@@ -45,14 +60,27 @@ contract Ballot {
             }));
         }
     }
-    Need to find out how to pass byte32[] when calling contractBallot.new(...) constructor.
+    Need to find out how to pass bytes32[] when calling contractBallot.new(...) constructor.
     Until then:
 */
     /// Create a new ballot to choose one of `proposalNames`.
-    function Ballot(string proposalNames) {
+//    function Ballot(string s) {
+    function Ballot() {
         chairperson = msg.sender;
         voters[chairperson].weight = 1;
-/* Keeping proposals empty...
+/*
+        bytes32[] memory proposalNames = new bytes32[](2); 
+	bytes32 item;
+	bytes memory s2bytes = bytes(s);
+	if (s2bytes.length <= 32) {
+            assembly {
+                item := mload(add(s, 32))
+            }
+            proposalNames[0] = item;
+        } // TODO: else
+        proposalNames[0] = "Let's go sailing!"; 
+        proposalNames[1] = "Let's go fishing!"; 
+
         // For each of the provided proposal names,
         // create a new proposal object and add it
         // to the end of the array.
@@ -66,22 +94,6 @@ contract Ballot {
             }));
         }
 */
-    }
-
-    // Give `_voters` the right to vote on this ballot.
-    // May only be called by `chairperson`.
-    function giveRightsToVote(address[] _voters) {
-        for (uint8 i = 0; i < _voters.length; i++) {
-            address voter = _voters[i];
-            // If the argument of `require` evaluates to `false`,
-            // it terminates and reverts all changes to
-            // the state and to Ether balances, and refunds 
-	    // the remaining gas to the caller. It is often
-            // a good idea to use this if functions are
-            // called incorrectly.
-            require((msg.sender == chairperson) && !voters[voter].voted && (voters[voter].weight == 0));
-            voters[voter].weight = 1;
-	}
     }
 
     // Give `voter` the right to vote on this ballot.

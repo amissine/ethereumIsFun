@@ -1,7 +1,6 @@
 
 var contractBallot = web3.eth.contract(abiBallot);
 var ballot = contractBallot.new(
-	"'Let\'s go sailing!', 'Let\'s go fishing!'",
 	{
 		from: web3.eth.accounts[0], 
 		data: binBallot, 
