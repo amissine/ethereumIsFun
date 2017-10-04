@@ -24,6 +24,9 @@ contract Ballot {
     // stores a `Voter` struct for each possible address.
     mapping(address => Voter) public voters;
 
+    // TODO: remove when done debugging
+    uint8 public votersTotal = 0;
+
     // A dynamically-sized array of `Proposal` structs.
     Proposal[] public proposals;
 /*
@@ -68,6 +71,7 @@ contract Ballot {
     function Ballot() {
         chairperson = msg.sender;
         voters[chairperson].weight = 1;
+	votersTotal += 1;
 /*
         bytes32[] memory proposalNames = new bytes32[](2); 
 	bytes32 item;
@@ -107,6 +111,7 @@ contract Ballot {
         // called incorrectly.
         require((msg.sender == chairperson) && !voters[voter].voted && (voters[voter].weight == 0));
         voters[voter].weight = 1;
+	votersTotal += 1;
     }
 
     /// Delegate your vote to the voter `to`.
