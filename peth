@@ -354,9 +354,9 @@ Creates / Runs / reMoves a private Ethereum cluster.
 
     peth -C|-R|-M  
 
-    -C      create new cluster (the node names are presently hardcoded)  
+    -C      create new cluster
     -R      run the cluster  
-    -M      remove the cluster directory (its name is presently hardcoded)  
+    -M      remove the cluster directory
 
 Standard options: `--help`, `--man`, `--version`, `--home`  
 
